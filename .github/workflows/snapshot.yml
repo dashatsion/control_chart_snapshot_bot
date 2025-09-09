@@ -1,0 +1,45 @@
+name: Weekly QA Snapshot
+on:
+  schedule:
+    - cron: "0 12 * * 1"  # літо: 15:00 Kyiv
+    - cron: "0 13 * * 1"  # зима: 15:00 Kyiv
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check local time (Europe/Kyiv)
+        id: when
+        run: |
+          if [ "$(TZ=Europe/Kyiv date +%H)" = "15" ]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install deps
+        if: steps.when.outputs.run == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Run snapshot (previous week)
+        if: steps.when.outputs.run == 'true'
+        run: python -m src.main
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT_KEYS: ${{ secrets.JIRA_PROJECT_KEYS }}
+          JIRA_QA_STATUS: Ready for QA
+          JIRA_DONE_STATUS: Done
+          LOOKBACK_DAYS: "14"
+          WINDOW_DAYS: "7"
+          TIMEZONE: Europe/Kyiv
+          ANOMALY_THRESHOLD_DAYS: "7"
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
